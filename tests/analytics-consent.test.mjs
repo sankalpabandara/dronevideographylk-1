@@ -1,7 +1,7 @@
-const { test } = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const ts = require('typescript');
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
 const moduleUnderTest = { exports: {} };
 new Function('exports', ts.transpileModule(fs.readFileSync('src/lib/analytics-consent.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -104,6 +104,16 @@ test('failed loading remains disabled and can retry without duplicate page views
   fails = false;
   await f.controller.update('accepted', page('/'));
   assert.equal(f.views().length, 1);
+});
+
+test('returning to the already measured page cancels an in-flight navigation', async () => {
+  const f = fixture();
+  await f.controller.update('accepted', page('/'));
+  const outbound = f.controller.update('accepted', page('/contact'));
+  const back = f.controller.update('accepted', page('/'));
+  await Promise.all([outbound, back]);
+  assert.equal(f.views().length, 1);
+  assert.equal(f.views()[0][3].page_location, 'https://dronevideography.lk/');
 });
 
 test('page payloads are exact allowlisted values and do not use personal input', () => {

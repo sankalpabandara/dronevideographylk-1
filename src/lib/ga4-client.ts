@@ -81,7 +81,7 @@ export class Ga4Client {
     signer.update(unsigned);
     const assertion = `${unsigned}.${signer.sign(this.config.privateKey, "base64url")}`;
     const response = await this.request("https://oauth2.googleapis.com/token", {
-      method: "POST", cache: "no-store", signal: AbortSignal.timeout(10000),
+      method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10000),
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
     });
@@ -98,7 +98,7 @@ export class Ga4Client {
   private async post<T>(method: string, body: object): Promise<T> {
     const token = await this.accessToken();
     const response = await this.request(`https://analyticsdata.googleapis.com/v1beta/properties/${this.config.propertyId}:${method}`, {
-      method: "POST", cache: "no-store", signal: AbortSignal.timeout(15000),
+      method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15000),
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });

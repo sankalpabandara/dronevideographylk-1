@@ -31,7 +31,8 @@ export function AnalyticsConsent({ measurementId, pages }: { measurementId: stri
         // Delete only the two Analytics cookies; never inspect other cookie values.
         for (const name of names) {
           for (const domain of ["", `; Domain=${location.hostname}`, "; Domain=dronevideography.lk"]) {
-            document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax${domain}`;
+            try { document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax${domain}`; }
+            catch { /* Restricted cookie access must not interrupt withdrawal. */ }
           }
         }
       },

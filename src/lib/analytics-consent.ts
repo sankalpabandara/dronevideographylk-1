@@ -47,11 +47,12 @@ export class ConsentAnalytics {
   }
 
   async update(choice: AnalyticsChoice | null, page: AnalyticsPage | null): Promise<void> {
-    if (choice === "accepted" && this.accepted && page && this.lastLocation === page.page_location) return;
     const revision = ++this.revision;
     const wasAccepted = this.accepted;
     this.accepted = choice === "accepted";
     this.page = page;
+    // Invalidate pending navigation even when returning to the last sent page.
+    if (this.accepted && wasAccepted && page && this.lastLocation === page.page_location) return;
     if (!this.accepted || !page) {
       this.port.disable(true);
       this.lastLocation = null;

@@ -1,28 +1,28 @@
-const { test } = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { createRequire } = require('node:module');
-const { generateKeyPairSync, verify } = require('node:crypto');
-const ts = require('typescript');
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { generateKeyPairSync, verify } from 'node:crypto';
+import ts from 'typescript';
 
 // Test the actual TypeScript modules with synthetic credentials and mocked HTTP only.
-function load(relative, mocks = {}) {
+function load(relative, mocks = {}, environment = process.env) {
   const filename = path.resolve(relative);
   const source = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const module = { exports: {} };
+  const testModule = { exports: {} };
   const localRequire = createRequire(filename);
-  new Function('require', 'module', 'exports', source)(
+  new Function('require', 'module', 'exports', 'process', source)(
     name => {
       if (Object.hasOwn(mocks, name)) return mocks[name];
       const relativeModule = path.resolve(path.dirname(filename), `${name}.ts`);
-      if (name.startsWith('./') && fs.existsSync(relativeModule)) return load(relativeModule, mocks);
+      if (name.startsWith('./') && fs.existsSync(relativeModule)) return load(relativeModule, mocks, environment);
       return localRequire(name);
-    }, module, module.exports,
+    }, testModule, testModule.exports, { env: environment },
   );
-  return module.exports;
+  return testModule.exports;
 }
 const { Ga4Client, parsePeriod, publicPageLabel, completeDailySeries } = load('src/lib/ga4-client.ts');
 const key = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -34,6 +34,7 @@ test('real-time requests are scoped, correctly signed, coalesced and cached', as
   const client = new Ga4Client(config, async (url, options) => {
     calls.push({ url, options });
     assert.equal(options.cache, 'no-store');
+    assert.equal(options.redirect, 'error');
     if (url.includes('oauth2')) {
       const [header, payload, signature] = options.body.get('assertion').split('.');
       assert.equal(verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), key.publicKey, Buffer.from(signature, 'base64url')), true);
@@ -118,12 +119,12 @@ test('only supported ranges and public labels are accepted', () => {
   assert.throws(() => new Ga4Client({ ...config, propertyId: '../../other' }));
 });
 
-function route(authenticated, client, defaults = false) {
+function route(authenticated, client, defaults = false, environment = {}) {
   return load('src/app/api/admin/analytics/route.ts', {
     '@/lib/auth': { isAuthenticated: async () => authenticated, usingDefaults: () => defaults },
     '@/lib/analytics-server': { analyticsClient: client, analyticsDestination: () => ({ propertyId: '123', streamId: '456' }) },
     '@/lib/ga4-client': { parsePeriod },
-  });
+  }, environment);
 }
 test('unauthenticated access never queries Google and has private no-store headers', async () => {
   const response = await route(false, () => { throw new Error('must not be called'); }).GET(new Request('https://dronevideography.lk/api/admin/analytics'));
@@ -136,6 +137,26 @@ test('unconfigured reports explicitly show disconnected, not success or zero', a
   const data = await response.json();
   assert.equal(data.status, 'not_configured');
   assert.equal(data.data, undefined);
+});
+
+test('production refuses reporting with default admin configuration before querying Google', async () => {
+  const handler = route(true, () => { throw new Error('must not query'); }, true, { NODE_ENV: 'production' });
+  const response = await handler.GET(new Request('https://dronevideography.lk/api/admin/analytics'));
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).message, /configured admin login/);
+});
+
+test('reporting stays disabled or rejects a mismatched destination without constructing a client', () => {
+  let constructed = 0;
+  const mocks = { 'server-only': {}, './ga4-client': { Ga4Client: class { constructor() { constructed++; } } } };
+  for (const environment of [
+    {}, { GA4_REPORTS_ENABLED: 'false' },
+    { GA4_REPORTS_ENABLED: 'true', GA4_PROPERTY_ID: '999', GA4_STREAM_ID: '15888838415', GA4_SERVICE_ACCOUNT_EMAIL: config.email, GA4_SERVICE_ACCOUNT_PRIVATE_KEY: 'synthetic' },
+    { GA4_REPORTS_ENABLED: 'true', GA4_PROPERTY_ID: '556761523', GA4_STREAM_ID: '999', GA4_SERVICE_ACCOUNT_EMAIL: config.email, GA4_SERVICE_ACCOUNT_PRIVATE_KEY: 'synthetic' },
+  ]) {
+    assert.equal(load('src/lib/analytics-server.ts', mocks, environment).analyticsClient(), null);
+  }
+  assert.equal(constructed, 0);
 });
 test('the reporting endpoint rejects arbitrary ranges and sanitizes Google failures', async () => {
   const handler = route(true, () => ({ realtime: () => { throw new Error('secret upstream body'); } }));

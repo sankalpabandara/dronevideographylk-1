@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { site, buildWhatsappHref } from "@/lib/site";
 import { Icon } from "@/components/ui/Icon";
 
@@ -17,23 +18,19 @@ export function ContactFloat({
   phone?: string;
 }) {
   const [inHero, setInHero] = useState(true);
+  const pathname = usePathname();
 
   useEffect(() => {
-    const hero = document.getElementById("hero");
-    if (!hero) {
-      setInHero(false);
-      return;
-    }
     let raf = 0;
     const update = () => {
       raf = 0;
-      const rect = hero.getBoundingClientRect();
-      setInHero(rect.bottom > window.innerHeight * 0.5);
+      const hero = document.getElementById("hero");
+      setInHero(Boolean(hero && hero.getBoundingClientRect().bottom > window.innerHeight * 0.5));
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(update);
     };
-    update();
+    raf = requestAnimationFrame(update);
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => {
@@ -41,7 +38,7 @@ export function ContactFloat({
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, []);
+  }, [pathname]);
 
   const telHref = `tel:${phone.replace(/[^0-9+]/g, "")}`;
 

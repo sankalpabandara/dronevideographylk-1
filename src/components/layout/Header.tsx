@@ -11,7 +11,9 @@ import { BookButton } from "@/components/booking/BookingDialog";
 export function Header() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [menu, setMenu] = useState({ pathname, open: false });
+  const open = menu.open;
+  if (menu.pathname !== pathname) setMenu({ pathname, open: false });
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -19,8 +21,6 @@ export function Header() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
-  useEffect(() => setOpen(false), [pathname]);
 
   return (
     <header
@@ -65,7 +65,7 @@ export function Header() {
           <CartButton />
           <button
             type="button"
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => setMenu({ pathname, open: !open })}
             className="grid h-10 w-10 place-items-center rounded-lg text-white md:hidden"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
@@ -90,7 +90,7 @@ export function Header() {
             ))}
             <li className="mt-2">
               <BookButton
-                onClick={() => setOpen(false)}
+                onClick={() => setMenu({ pathname, open: false })}
                 className="flex w-full items-center justify-center gap-2 rounded-full bg-sunset px-5 py-3 font-semibold text-night"
               >
                 <Icon name="whatsapp" size={18} /> Book a drone video

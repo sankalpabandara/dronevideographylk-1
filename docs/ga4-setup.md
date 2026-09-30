@@ -57,7 +57,9 @@ Local tests cover signing/scoping, unauthorized access, caching, report failures
 Run:
 
 ```sh
-node --test tests/analytics.test.cjs tests/analytics-consent.test.cjs
+node --test tests/analytics.test.mjs tests/analytics-consent.test.mjs
+npm run lint
+npm audit
 npx tsc --noEmit
 npm run build
 ```
@@ -73,11 +75,23 @@ Before activation:
 
 The repository's current workflow deploys pushes to `main` to Contabo. Opening this PR does not merge it or publish these changes. Preserve unrelated unpublished work.
 
+### Pre-merge security and regression review
+
+Next.js and its ESLint configuration were updated from 16.2.12 to 16.3.7, with compatible lockfile security updates. The initial dependency audit reported one critical and five high package findings; the updated audit reported zero known vulnerabilities. This is a dependency database result, not a guarantee against unknown vulnerabilities.
+
+The review fixed a reproduced rapid-navigation race that could send a stale page view, blocked redirects on credential-bearing Google requests, and made cookie cleanup tolerant of restricted browser storage. Tests also cover production refusal with unconfigured admin authentication and mismatched destinations. Existing mobile menu and floating-contact effects were corrected without changing their design.
+
+Validation: all 19 automated tests, full ESLint, TypeScript and the production build passed. On the production-mode local server, missing and synthetic invalid sessions both received 401 with private/no-store headers. Home, fleet, portfolio, shop, contact and cart returned 200 with collection disabled and no Google tag script. Chrome mobile checks confirmed route navigation closes the menu, contact controls render without horizontal overflow, and the booking dialog opens/closes without submission; no console warnings/errors were observed in those checks.
+
+This review covers the changed implementation and its immediate integration boundaries. It is not a penetration test of hosting, all legacy admin actions or third-party infrastructure. Existing admin authentication still depends on privately configured deployment secrets; those values were not accessed or changed. Live reporting, actual Google consent traffic and production deployment behavior remain separate rollout checks.
+
 ## Undo
 
 Disable `GA4_REPORTS_ENABLED` and restart/redeploy to stop reporting API calls. Remove/set false `GA4_COLLECTION_ENABLED`, rebuild and redeploy to remove collection from new page loads. Already-open pages retain their loaded code until closed or reloaded; a deployment is not an instantaneous stop for every existing tab.
 
 Revert the dedicated GA4 commit, preserving any subsequent edits. It adds three small integration edits (public layout, admin layout, admin navigation) and the analytics modules, route, tests and this document. Do not reset the whole repository. Private verified pre-edit copies were retained locally before editing the original checkout.
+
+The follow-up security commit also updates dependencies and fixes menu/contact effects. Prefer a targeted analytics rollback so the dependency security patches remain in place. If reverting the whole PR merge is necessary, use a normal revert of that merge's first-parent changes, then reapply the dependency patches; do not force-push or reset shared history.
 
 If reporting permission is later granted, revoke only the dedicated identity's Viewer permission and remove its privately managed credentials. Keep the GA4 property and historical data; deleting them is unnecessary for rollback.
 
