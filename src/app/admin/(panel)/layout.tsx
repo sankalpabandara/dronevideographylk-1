@@ -4,6 +4,7 @@ import { isAuthenticated } from "@/lib/auth";
 import { logoutAction } from "@/app/admin/actions";
 import { getEnquiries, getOrders } from "@/lib/db";
 import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminAnalytics } from "@/components/admin/AnalyticsDashboard";
 import { Icon } from "@/components/ui/Icon";
 
 export const metadata = { title: "Admin", robots: { index: false } };
@@ -39,7 +40,7 @@ export default async function AdminPanelLayout({ children }: { children: React.R
         </form>
       </aside>
 
-      <main className="p-5 sm:p-8">{children}</main>
+      <main className="min-w-0 p-5 sm:p-8"><AdminAnalytics>{children}</AdminAnalytics></main>
     </div>
   );
 }
